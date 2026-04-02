@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор заявок</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.45.0/docxtemplater.js"></script>
+    <script src="https://unpkg.com/pizzip@3.1.6/dist/pizzip.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.8/FileSaver.js"></script>
+    <style>
+        :root {
+            --primary: #007bff; --primary-dark: #0056b3;
+            --border-color: #ccc; --background-color: #f8f9fa;
+            --text-color: #212529; --light-text: #6c757d;
+            --success: #28a745; --error: #dc3545; --grey: #adb5bd;
+            --guide-bg: #eef4ff; --guide-text: #0056b3;
+            --error-bg: #f8d7da; --error-text: #721c24;
+            --secondary: #6c757d; --secondary-dark: #5a6268;
+            --bulk-color: #6f42c1; --bulk-color-dark: #59339d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        body { background-color: var(--background-color); color: var(--text-color); line-height: 1.5; padding: 15px; }
+        .container { max-width: 1200px; margin: 20px auto; }
+        header { padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); position: relative; }
+        .header-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; }
+        .header-controls { display: flex; align-items: center; gap: 15px; flex-grow: 1; flex-wrap: wrap; }
+        .header-status { display: flex; align-items: center; gap: 20px; }
+        .status-counter { text-align: left; }
+        .status-value { font-weight: 700; font-size: 1.5rem; color: var(--primary); }
+        .status-label { font-size: .9rem; color: var(--light-text); }
+        h1 { font-size: 2rem; color: var(--text-color); text-align: center; margin-bottom: 8px; }
+        .guide-container { text-align: center; padding-top: 5px; min-height: 48px; }
+        .guide-text { display: inline-block; background-color: var(--guide-bg); color: var(--guide-text); padding: 8px 15px; border-radius: 20px; font-size: .95rem; font-weight: 500; opacity: 0; transform: translateY(-10px); transition: opacity .4s ease-out,transform .4s ease-out,background-color .3s,color .3s; max-width: 90%; }
+        .guide-text.visible { opacity: 1; transform: translateY(0); }
+        .final-hint { color: var(--light-text); font-weight: 500; }
+        .guide-text.error { background-color: var(--error-bg); color: var(--error-text); }
+        .card { background: white; border-radius: 8px; border: 1px solid var(--border-color); padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { padding: 10px 12px; border: 1px solid var(--border-color); text-align: left; vertical-align: middle; white-space: nowrap; }
+        th { background: #f1f1f1; font-weight: 600; }
+        .dont-vary-label { font-size: 0.75rem; font-weight: normal; color: var(--secondary-dark); cursor: pointer; display: flex; align-items: center; gap: 4px; margin-top: 4px; user-select: none; }
+        .status-light-th { width: 30px; text-align: center; }
+        .status-light { width: 12px; height: 12px; border-radius: 50%; display: inline-block; transition: background-color .3s; }
+        .status-grey { background-color: var(--grey); }
+        .status-red { background-color: var(--error); }
+        .status-green { background-color: var(--success); }
+        
+        .editable-cell { padding: 8px; min-height: 34px; outline: none; border: 1px solid transparent; border-radius: 4px; transition: all 0.2s ease-in-out; }
+        .editable-cell[data-placeholder]:empty:not(:focus):before { content: attr(data-placeholder); color: var(--light-text); opacity: .7; pointer-events: none; }
+        .editable-cell:focus { border-color: var(--primary); background: var(--guide-bg); box-shadow: 0 0 0 2px rgba(0,123,255,.25); }
+        
+        .delete-cell { text-align: center; cursor: pointer; color: var(--error); font-weight: bold; user-select: none; opacity: 0.6; transition: opacity 0.2s; font-size: 1.2rem; }
+        .delete-cell:hover { opacity: 1; }
+        .btn-container { text-align: center; margin-top: 20px; }
+        .btn { background-color: var(--primary); color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 1rem; display: inline-flex; align-items: center; gap: 8px; transition: background-color 0.3s; }
+        .btn:hover { background-color: var(--primary-dark); }
+        .btn.btn-secondary { background-color: var(--secondary); }
+        .btn.btn-secondary:hover { background-color: var(--secondary-dark); }
+        .btn.btn-bulk { background-color: var(--bulk-color); }
+        .btn.btn-bulk:hover { background-color: var(--bulk-color-dark); }
+        .btn-header { padding: 8px 15px; font-size: .9rem; }
+        .notification { position: fixed; top: 20px; right: 20px; padding: 15px; border-radius: 5px; color: white; z-index: 1000; opacity: 0; transition: opacity .3s; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .notification.show { opacity: 1; display: block; }
+        .notification.success { background-color: var(--success); }
+        .notification.error { background-color: var(--error); }
+        .loader { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity .3s; }
+        .loader.active { opacity: 1; pointer-events: all; }
+        .spinner { width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loader-text { font-size: 1.1rem; font-weight: 600; color: var(--text-color); }
+        .top-generate-btn { margin-left: auto; }
+        #drag-drop-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 123, 255, 0.7); z-index: 10000; display: none; justify-content: center; align-items: center; color: white; font-size: 2rem; font-weight: bold; border: 5px dashed white; box-sizing: border-box; text-align: center; padding: 20px; }
+        #drag-drop-overlay.visible { display: flex; }
+        
+        /* Modal for Bulk Input */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; justify-content: center; align-items: center; }
+        .modal-overlay.visible { display: flex; }
+        .modal-card { background: white; border-radius: 8px; padding: 25px; width: 90%; max-width: 900px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .modal-title { font-size: 1.25rem; font-weight: 600; color: var(--text-color); }
+        .modal-close { cursor: pointer; font-size: 1.5rem; color: var(--light-text); border: none; background: none; transition: color 0.2s; }
+        .modal-close:hover { color: var(--error); }
+        .bulk-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .bulk-col { display: flex; flex-direction: column; gap: 5px; }
+        .bulk-col label { font-weight: 600; font-size: 0.95rem; color: var(--text-color); }
+        .bulk-col textarea { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical; font-family: inherit; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap; }
+        .bulk-col textarea:focus { outline: none; border-color: var(--bulk-color); box-shadow: 0 0 0 2px rgba(111, 66, 193, 0.25); }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 15px; }
+        
+        @media (max-width: 900px) {
+            .header-main { flex-direction: column; align-items: stretch; }
+            .header-controls { justify-content: space-between; width: 100%; }
+            .top-generate-btn { margin-left: 0; width: 100%; }
+            .top-generate-btn .btn { width: 100%; justify-content: center; }
+            .bulk-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) { h1 { font-size: 1.8rem; } }
+    </style>
+</head>
+<body>
+<div id="drag-drop-overlay"><div>Перетягніть JSON файл сюди</div></div>
+
+<div class="container">
+    <header>
+        <div class="header-main">
+            <div class="header-controls">
+                
+                <!-- Швидке введення списком -->
+                <button id="bulk-btn" class="btn btn-bulk btn-header" title="Вставити декілька рядків одночасно">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M2 2.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5V3a.5.5 0 0 0-.5-.5H2zM3 3H2v1h1V3z"/>
+                        <path d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM5.5 7a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9zm0 4a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9z"/>
+                        <path fill-rule="evenodd" d="M1.5 7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V7zM2 7h1v1H2V7zm0 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5H2zm1 .5H2v1h1v-1z"/>
+                    </svg>
+                    Ввести списком
+                </button>
+
+                <!-- Завантаження JSON -->
+                 <input type="file" id="upload-json-input" accept=".json" style="display: none;">
+                 <label for="upload-json-input" id="upload-json-btn" class="btn btn-secondary btn-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708l3-3z"/></svg>
+                    Додати JSON
+                </label>
+                 <button id="save-json-btn" class="btn btn-secondary btn-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-save" viewBox="0 0 16 16"><path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v4.5h2a.5.5 0 0 1 .354.854l-2.5 2.5a.5.5 0 0 1-.708 0l-2.5-2.5A.5.5 0 0 1 5.5 6.5h2V2a2 2 0 0 1 2-2H14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h2.5a.5.5 0 0 1 0 1H2z"></path></svg>
+                    Зберегти JSON
+                </button>
+                <div class="header-status">
+                    <div class="status-counter">
+                        <div class="status-value" id="filled-rows">0/3</div>
+                        <div class="status-label">Заповнено рядків</div>
+                    </div>
+                    <div class="status-counter">
+                        <div class="status-value" id="to-generate">0</div>
+                        <div class="status-label">До генерації</div>
+                    </div>
+                </div>
+            </div>
+            <div class="top-generate-btn">
+                <button id="generate-btn-top" class="btn btn-header">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+                    Згенерувати
+                </button>
+            </div>
+        </div>
+        <h1 id="main-title"></h1>
+        <div class="guide-container"><span id="guide-text-element" class="guide-text"></span></div>
+    </header>
+    <div class="card">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr id="table-header-row">
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                </tbody>
+            </table>
+        </div>
+        <div class="btn-container">
+            <button id="generate-btn" class="btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+                    Згенерувати DOCX файли
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальне вікно для введення списком -->
+<div id="bulk-modal" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <div class="modal-title">Швидке введення списком</div>
+            <button id="bulk-close-top" class="modal-close">&times;</button>
+        </div>
+        <p style="margin-bottom: 15px; color: var(--light-text); font-size: 0.9rem;">
+            Вставте потрібні дані у стовпці. Кожен новий рядок автоматично створить новий запис у таблиці. 
+            Ви можете вставляти списки як сюди, так і безпосередньо у клітинки таблиці!
+        </p>
+        <div class="bulk-grid">
+            <div class="bulk-col">
+                <label>Назва журналу</label>
+                <textarea id="bulk-ta-0" rows="10" placeholder="Вісник філософії&#nІсторичні відомості&#nЦікаві події..."></textarea>
+            </div>
+            <div class="bulk-col">
+                <label>Посада керівника</label>
+                <textarea id="bulk-ta-1" rows="10" placeholder="Ректор&#nПроректор..."></textarea>
+            </div>
+            <div class="bulk-col">
+                <label>ПІБ керівника</label>
+                <textarea id="bulk-ta-2" rows="10" placeholder="ШЕВЧЕНКО Тарас&#nФРАНКО Іван..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="bulk-cancel" class="btn btn-secondary">Скасувати</button>
+            <button id="bulk-apply" class="btn btn-bulk">Додати до таблиці</button>
+        </div>
+    </div>
+</div>
+
+<div class="notification" id="notification"></div>
+<div class="loader" id="loader">
+    <div class="spinner"></div>
+    <div class="loader-text">Генеруємо документи...</div>
+</div>
+
+<script>
+function getVal(cell) {
+    return cell.textContent;
+}
+function setVal(cell, val) {
+    cell.textContent = val;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const CONFIG = {
+        journal: {
+            title: 'Генератор заявок <span style="font-size: 0.5em; color: var(--light-text); font-weight: normal; vertical-align: middle; margin-left: 10px;">v2.1</span>',
+            templateUrls: [
+                'https://gitknu.github.io/nkc_letter/template.docx'
+            ],
+            headers: ['#', 'Статус', 'Назва журналу', 'Посада керівника', 'ПІБ керівника'],
+            dataKeys: ['name_journal_always_vary', 'position_person_may_vary', 'name_person_may_vary'],
+            placeholders: ['Науковий вісник...', 'Ректор', 'Тарас ШЕВЧЕНКО'],
+            colProps: { }, 
+            errorMessages: [],
+            guideSteps: [
+                { text: "Введіть назву періодичного видання" },
+                { text: "Чудово! Натисніть Tab для переходу далі" },
+                { text: "Введіть посаду керівника (напр. Ректор)" },
+                { text: "Введіть ПІБ керівника" },
+                { text: "Рядок заповнено! Натисніть Esc, щоб вийти з редагування" },
+                { text: "Супер! Тепер тисніть Enter, щоб згенерувати документи" },
+                { text: "<span class='final-hint'>Shift+Tab: Назад | Tab: Вперед | Esc: Вийти | Enter: Згенерувати</span>" }
+            ]
+        }
+    };
+    const INITIAL_ROWS = 3;
+    const MAX_ROWS = 100; // збільшено для масового введення
+    let currentMode = 'journal';
+    let isTutorialActive = true;
+    let currentTutorialStep = 0;
+    
+    const elements = {
+        title: document.getElementById('main-title'),
+        tableHeaderRow: document.getElementById('table-header-row'),
+        tableBody: document.getElementById('table-body'),
+        generateBtn: document.getElementById('generate-btn'),
+        generateBtnTop: document.getElementById('generate-btn-top'),
+        saveJsonBtn: document.getElementById('save-json-btn'),
+        uploadJsonInput: document.getElementById('upload-json-input'),
+        dragDropOverlay: document.getElementById('drag-drop-overlay'),
+        notification: document.getElementById('notification'),
+        filledRows: document.getElementById('filled-rows'),
+        toGenerate: document.getElementById('to-generate'),
+        loader: document.getElementById('loader'),
+        guideText: document.getElementById('guide-text-element'),
+        
+        // Вікно масового введення
+        bulkBtn: document.getElementById('bulk-btn'),
+        bulkModal: document.getElementById('bulk-modal'),
+        bulkCloseTop: document.getElementById('bulk-close-top'),
+        bulkCancel: document.getElementById('bulk-cancel'),
+        bulkApply: document.getElementById('bulk-apply'),
+        bulkTa0: document.getElementById('bulk-ta-0'),
+        bulkTa1: document.getElementById('bulk-ta-1'),
+        bulkTa2: document.getElementById('bulk-ta-2'),
+    };
+
+    function init() {
+        const config = CONFIG[currentMode];
+        elements.title.innerHTML = config.title;
+        updateTableHeader();
+        initializeTable();
+        showGuideText(0);
+    }
+
+    function updateTableHeader() {
+        const config = CONFIG[currentMode];
+        let headerHTML = config.headers.map((h, i) => {
+             if (h === 'Статус') {
+                return `<th class="status-light-th"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8 4a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 4zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></th>`;
+             }
+             if (h === 'Посада керівника' || h === 'ПІБ керівника') {
+                 const targetKey = h === 'Посада керівника' ? 'position_person_may_vary' : 'name_person_may_vary';
+                 return `<th>${h} <br><label class="dont-vary-label" title="При введенні нових даних, вони будуть копіюватись на всі наступні рядки автоматично"><input type="checkbox" class="dont-vary-cb" data-target="${targetKey}"> Однакова для всіх</label></th>`;
+             }
+             return `<th>${h}</th>`;
+        }).join('');
+        headerHTML += `<th style="width: 30px; text-align: center;" title="Дії">🗑️</th>`;
+        elements.tableHeaderRow.innerHTML = headerHTML;
+    }
+
+    function initializeTable() {
+        elements.tableBody.innerHTML = '';
+        for (let i = 0; i < INITIAL_ROWS; i++) {
+            addRow();
+        }
+        updateStatus();
+        const firstRowCells = elements.tableBody.querySelectorAll('tr:first-child .editable-cell');
+        const placeholders = CONFIG[currentMode].placeholders;
+        firstRowCells.forEach((cell, i) => {
+            if (placeholders[i]) {
+                cell.setAttribute('data-placeholder', placeholders[i]);
+            }
+        });
+        const firstCell = elements.tableBody.querySelector('tr:first-child .editable-cell');
+        if (firstCell) firstCell.focus();
+    }
+
+    function addRow() {
+        const rowIndex = elements.tableBody.rows.length;
+        if (rowIndex >= MAX_ROWS) return;
+        const row = document.createElement('tr');
+        const numCols = CONFIG[currentMode].dataKeys.length;
+        let rowHTML = `<td>${rowIndex + 1}</td><td><div class="status-light status-grey"></div></td>`;
+        for(let i = 0; i < numCols; i++) {
+            rowHTML += `<td><div class="editable-cell" contenteditable="true"></div></td>`;
+        }
+        rowHTML += `<td class="delete-cell" title="Видалити рядок">✖</td>`;
+        row.innerHTML = rowHTML;
+        elements.tableBody.appendChild(row);
+
+        // Синхронізуємо нові поля, якщо увімкнені відповідні чекбокси
+        const newRow = elements.tableBody.lastElementChild;
+        elements.tableHeaderRow.querySelectorAll('.dont-vary-cb').forEach(cb => {
+            if (cb.checked) {
+                const th = cb.closest('th');
+                const colIndex = th.cellIndex;
+                const firstCell = elements.tableBody.querySelector(`tr:first-child td:nth-child(${colIndex + 1}) .editable-cell`);
+                const newCell = newRow.querySelector(`td:nth-child(${colIndex + 1}) .editable-cell`);
+                if (firstCell && newCell && getVal(firstCell).trim() !== '') {
+                    setVal(newCell, getVal(firstCell));
+                }
+            }
+        });
+    }
+
+    function updateRowNumbers() {
+        elements.tableBody.querySelectorAll('tr').forEach((row, index) => {
+            row.cells[0].textContent = index + 1;
+        });
+    }
+
+    function updateStatus() {
+        const rows = elements.tableBody.querySelectorAll('tr');
+        let completeRowCount = 0;
+        
+        rows.forEach((row, rowIndex) => {
+            const cells = row.querySelectorAll('.editable-cell');
+            const statusLight = row.querySelector('.status-light');
+            let filledCellCount = 0;
+            
+            cells.forEach((cell, i) => {
+                if (getVal(cell).trim() !== '') {
+                    filledCellCount++;
+                }
+            });
+
+            const isComplete = filledCellCount === cells.length;
+            
+            if (filledCellCount === 0) {
+                statusLight.className = 'status-light status-grey';
+            } else if (isComplete) {
+                statusLight.className = 'status-light status-green';
+                completeRowCount++;
+            } else {
+                statusLight.className = 'status-light status-red';
+            }
+            if (isTutorialActive && rowIndex === 0 && isComplete && document.activeElement === row.querySelector('td:last-child .editable-cell')) {
+                showGuideText(4);
+            }
+        });
+        elements.filledRows.textContent = `${completeRowCount}/${rows.length}`;
+        elements.toGenerate.textContent = completeRowCount;
+    }
+
+    async function generateDocuments() {
+        if (isTutorialActive) endTutorial();
+        const config = CONFIG[currentMode];
+        
+        const dataToGenerate = [];
+        elements.tableBody.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('.editable-cell');
+            const rowData = {};
+            let isRowComplete = true;
+            let hasData = false;
+            
+            cells.forEach((cell, i) => {
+                const value = getVal(cell).trim();
+                const key = config.dataKeys[i];
+                rowData[key] = value;
+                
+                if (value !== '') {
+                    hasData = true;
+                } else {
+                    isRowComplete = false;
+                }
+            });
+
+            if (hasData && isRowComplete) {
+                dataToGenerate.push(rowData);
+            }
+        });
+        
+        if (dataToGenerate.length === 0) {
+            showGuideAlert('Помилка: Немає повністю заповнених рядків для генерації.');
+            return;
+        }
+        
+        elements.loader.classList.add('active');
+        try {
+            for (const [i, rowData] of dataToGenerate.entries()) {
+                let templateUrl = config.templateUrls[0];
+                const docData = { ...rowData };
+
+                let templateContent;
+                try {
+                    const response = await fetch(templateUrl);
+                    if (!response.ok) {
+                        throw new Error(`Файл не знайдено (код помилки: ${response.status}). Перевірте посилання: ${templateUrl}`);
+                    }
+                    templateContent = await response.arrayBuffer();
+                } catch (fetchError) {
+                    throw new Error(`Мережева помилка або файл недоступний: ${fetchError.message}`);
+                }
+                
+                const zip = new PizZip(templateContent);
+                const doc = new docxtemplater(zip, { delimiters: { start: '<', end: '>' } });
+                doc.setData(docData);
+                doc.render();
+                const out = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                
+                let safeName = (rowData.name_journal_always_vary || 'Журнал').replace(/[\\/:*?"<>|]/g, '').slice(0, 30).trim();
+                saveAs(out, `${i + 1}_Заявка_${safeName}.docx`);
+            }
+            showNotification(`Успішно згенеровано ${dataToGenerate.length} документів!`);
+        } catch (e) {
+            console.error('Generation error:', e);
+            showGuideAlert(`Критична помилка: ${e.message}`);
+        } finally {
+            elements.loader.classList.remove('active');
+        }
+    }
+
+    // --- JSON ЗБЕРЕЖЕННЯ / ЗАВАНТАЖЕННЯ ---
+    function saveTableDataAsJson() {
+        const config = CONFIG[currentMode];
+        const dataToSave = [];
+
+        elements.tableBody.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('.editable-cell');
+            const rowData = {};
+            let hasData = false;
+
+            cells.forEach((cell, i) => {
+                const value = getVal(cell).trim();
+                if (value) hasData = true;
+                rowData[config.dataKeys[i]] = value;
+            });
+
+            if (hasData) {
+                dataToSave.push(rowData);
+            }
+        });
+
+        if (dataToSave.length === 0) {
+            showNotification('Немає даних для збереження.', false);
+            return;
+        }
+
+        const jsonData = {
+            mode: currentMode,
+            data: dataToSave
+        };
+
+        const jsonString = JSON.stringify(jsonData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+        
+        const date = new Date();
+        const dateString = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+        const fileName = `journal_data_${dateString}.json`;
+
+        saveAs(blob, fileName);
+        showNotification('Дані успішно збережено в JSON!', true);
+    }
+
+    function populateTableFromJson(jsonData) {
+        if (!jsonData || !jsonData.mode || !Array.isArray(jsonData.data)) {
+            showNotification('Помилка: Некоректний формат JSON файлу.', false);
+            return;
+        }
+
+        elements.tableBody.innerHTML = '';
+        const dataKeys = CONFIG[currentMode].dataKeys;
+
+        jsonData.data.forEach(rowData => {
+            addRow();
+            const newRow = elements.tableBody.lastElementChild;
+            const cells = newRow.querySelectorAll('.editable-cell');
+            cells.forEach((cell, i) => {
+                const key = dataKeys[i];
+                if (rowData[key] !== undefined) {
+                    setVal(cell, rowData[key]);
+                }
+            });
+        });
+
+        while (elements.tableBody.rows.length < INITIAL_ROWS) {
+            addRow();
+        }
+        
+        updateStatus();
+        showNotification('Дані успішно завантажено з файлу!', true);
+    }
+
+    function loadFile(file) {
+        if (!file || !file.type.match('application/json') && !file.name.endsWith('.json')) {
+            showNotification('Помилка: Будь ласка, завантажте файл у форматі .json', false);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const jsonData = JSON.parse(e.target.result);
+                populateTableFromJson(jsonData);
+            } catch (error) {
+                console.error("JSON parsing error:", error);
+                showNotification('Помилка читання файлу. Переконайтесь, що це коректний JSON.', false);
+            }
+        };
+        reader.onerror = () => {
+             showNotification('Не вдалося прочитати файл.', false);
+        };
+        reader.readAsText(file);
+    }
+
+    elements.uploadJsonInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) loadFile(file);
+        event.target.value = null;
+    });
+
+    // --- BULK INSERT (ВВЕДЕННЯ СПИСКОМ ВІКНО) ---
+    function openBulkModal() {
+        elements.bulkTa0.value = '';
+        elements.bulkTa1.value = '';
+        elements.bulkTa2.value = '';
+        elements.bulkModal.classList.add('visible');
+    }
+    
+    function closeBulkModal() {
+        elements.bulkModal.classList.remove('visible');
+    }
+
+    function applyBulkData() {
+        const lines0 = elements.bulkTa0.value.split(/\r?\n/);
+        const lines1 = elements.bulkTa1.value.split(/\r?\n/);
+        const lines2 = elements.bulkTa2.value.split(/\r?\n/);
+
+        const maxLines = Math.max(lines0.length, lines1.length, lines2.length);
+        const dataToInsert = [];
+        
+        for (let i = 0; i < maxLines; i++) {
+            const v0 = (lines0[i] || '').trim();
+            const v1 = (lines1[i] || '').trim();
+            const v2 = (lines2[i] || '').trim();
+            if (v0 || v1 || v2) {
+                dataToInsert.push([v0, v1, v2]);
+            }
+        }
+
+        if (dataToInsert.length === 0) {
+            closeBulkModal();
+            return;
+        }
+
+        let emptyRows = [];
+        elements.tableBody.querySelectorAll('tr').forEach(tr => {
+            const cells = tr.querySelectorAll('.editable-cell');
+            if (Array.from(cells).every(c => getVal(c).trim() === '')) {
+                emptyRows.push(tr);
+            }
+        });
+
+        let trIndex = 0;
+        dataToInsert.forEach((data) => {
+            let tr;
+            if (trIndex < emptyRows.length) {
+                tr = emptyRows[trIndex++];
+            } else {
+                if (elements.tableBody.rows.length >= MAX_ROWS) return;
+                addRow();
+                tr = elements.tableBody.lastElementChild;
+            }
+
+            const cells = tr.querySelectorAll('.editable-cell');
+            if (data[0]) setVal(cells[0], data[0]);
+            if (data[1]) setVal(cells[1], data[1]);
+            if (data[2]) setVal(cells[2], data[2]);
+        });
+
+        // Примусова синхронізація чекбоксів "Однакова для всіх"
+        elements.tableHeaderRow.querySelectorAll('.dont-vary-cb').forEach(cb => {
+            if (cb.checked) {
+                const colIndex = cb.closest('th').cellIndex;
+                const firstCell = elements.tableBody.querySelector(`tr:first-child td:nth-child(${colIndex + 1}) .editable-cell`);
+                if (firstCell && getVal(firstCell).trim() !== '') {
+                    const val = getVal(firstCell);
+                    elements.tableBody.querySelectorAll(`tr td:nth-child(${colIndex + 1}) .editable-cell`).forEach(c => {
+                        if (c !== firstCell && getVal(c).trim() === '') setVal(c, val);
+                    });
+                }
+            }
+        });
+
+        updateStatus();
+        closeBulkModal();
+        showNotification(`Успішно додано ${dataToInsert.length} записів!`);
+    }
+
+    elements.bulkBtn.addEventListener('click', openBulkModal);
+    elements.bulkCloseTop.addEventListener('click', closeBulkModal);
+    elements.bulkCancel.addEventListener('click', closeBulkModal);
+    elements.bulkApply.addEventListener('click', applyBulkData);
+
+    // --- BULK INSERT (ПРЯМА ВСТАВКА В КЛІТИНКУ ТАБЛИЦІ) ---
+    elements.tableBody.addEventListener('paste', e => {
+        const cell = e.target.closest('.editable-cell');
+        if (!cell) return;
+        
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        // Якщо це просто один рядок, дозволяємо браузеру вставити його як зазвичай
+        if (!text.includes('\n') && !text.includes('\r')) return; 
+        
+        e.preventDefault();
+        
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== '');
+        if (lines.length === 0) return;
+        
+        const td = cell.closest('td');
+        const colIndex = td.cellIndex;
+        let tr = cell.closest('tr');
+        
+        lines.forEach(line => {
+            if (!tr) {
+                if (elements.tableBody.rows.length >= MAX_ROWS) return;
+                addRow();
+                tr = elements.tableBody.lastElementChild;
+            }
+            const currentCell = tr.cells[colIndex].querySelector('.editable-cell');
+            if (currentCell) setVal(currentCell, line);
+            tr = tr.nextElementSibling;
+        });
+        
+        // Синхронізація "Однакова для всіх", якщо увімкнено
+        const th = elements.tableHeaderRow.cells[colIndex];
+        const cb = th ? th.querySelector('.dont-vary-cb') : null;
+        if (cb && cb.checked) {
+            const firstCell = elements.tableBody.querySelector(`tr:first-child td:nth-child(${colIndex + 1}) .editable-cell`);
+            if (firstCell && getVal(firstCell).trim() !== '') {
+                const val = getVal(firstCell);
+                elements.tableBody.querySelectorAll(`tr td:nth-child(${colIndex + 1}) .editable-cell`).forEach(c => {
+                    if (c !== firstCell) setVal(c, val);
+                });
+            }
+        }
+        
+        updateStatus();
+    });
+
+    function showNotification(message, isSuccess = true) {
+        elements.notification.textContent = message;
+        elements.notification.className = `notification ${isSuccess ? 'success' : 'error'} show`;
+        setTimeout(() => elements.notification.classList.remove('show'), 5000);
+    }
+
+    function showGuideText(stepIndex) {
+        const guideSteps = CONFIG[currentMode].guideSteps;
+        if (!isTutorialActive && stepIndex < guideSteps.length - 1) return;
+        if (isTutorialActive && stepIndex < currentTutorialStep) return;
+        currentTutorialStep = stepIndex;
+        const step = guideSteps[stepIndex];
+        elements.guideText.classList.remove('visible');
+        setTimeout(() => {
+            elements.guideText.innerHTML = step.text;
+            elements.guideText.classList.remove('error');
+            elements.guideText.classList.add('visible');
+        }, 200);
+    }
+
+    function showGuideAlert(message) {
+        if (isTutorialActive) return;
+        elements.guideText.classList.remove('visible');
+        setTimeout(() => {
+            elements.guideText.innerHTML = message;
+            elements.guideText.classList.add('error', 'visible');
+        }, 150);
+    }
+
+    function endTutorial() {
+        if (!isTutorialActive) return;
+        isTutorialActive = false;
+        setTimeout(() => showGuideText(CONFIG[currentMode].guideSteps.length - 1), 500);
+    }
+
+    // --- EVENT LISTENERS ДЛЯ ТАБЛИЦІ ---
+    elements.generateBtn.addEventListener('click', generateDocuments);
+    elements.generateBtnTop.addEventListener('click', generateDocuments);
+    elements.saveJsonBtn.addEventListener('click', saveTableDataAsJson);
+    
+    // Обробка чекбоксів у шапці "Однакова для всіх"
+    elements.tableHeaderRow.addEventListener('change', e => {
+        if (e.target.classList.contains('dont-vary-cb')) {
+            const th = e.target.closest('th');
+            const colIndex = th.cellIndex;
+            if (e.target.checked) {
+                const firstCell = elements.tableBody.querySelector(`tr:first-child td:nth-child(${colIndex + 1}) .editable-cell`);
+                if (firstCell && getVal(firstCell).trim() !== '') {
+                    const val = getVal(firstCell);
+                    elements.tableBody.querySelectorAll(`tr td:nth-child(${colIndex + 1}) .editable-cell`).forEach(c => {
+                        if (c !== firstCell) {
+                            setVal(c, val);
+                        }
+                    });
+                    updateStatus();
+                }
+            }
+        }
+    });
+
+    elements.tableBody.addEventListener('click', e => {
+        if (e.target.classList.contains('delete-cell')) {
+            const row = e.target.closest('tr');
+            if (elements.tableBody.rows.length > 1) {
+                row.remove();
+                updateRowNumbers();
+                updateStatus();
+            } else {
+                row.querySelectorAll('.editable-cell').forEach(c => setVal(c, ''));
+                updateStatus();
+            }
+        }
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.target.classList.contains('editable-cell') && !elements.bulkModal.classList.contains('visible')) {
+            e.preventDefault();
+            generateDocuments();
+        } else if (e.key === 'Escape' || e.key === 'Esc') {
+            if (elements.bulkModal.classList.contains('visible')) {
+                closeBulkModal();
+            } else if (document.activeElement.classList.contains('editable-cell')) {
+                document.activeElement.blur();
+                if (isTutorialActive) showGuideText(5);
+            }
+        }
+    });
+
+    elements.tableBody.addEventListener('input', e => {
+        const cell = e.target;
+        if (!cell.classList.contains('editable-cell')) return;
+        const row = cell.closest('tr');
+        const td = cell.closest('td');
+        const colIndex = td.cellIndex;
+
+        // Логіка копіювання значень, якщо увімкнено чекбокс "Однакове для всіх"
+        const th = elements.tableHeaderRow.cells[colIndex];
+        const cb = th ? th.querySelector('.dont-vary-cb') : null;
+        if (cb && cb.checked) {
+            const val = getVal(cell);
+            elements.tableBody.querySelectorAll(`tr td:nth-child(${colIndex + 1}) .editable-cell`).forEach(c => {
+                if (c !== cell) setVal(c, val);
+            });
+        }
+
+        if (row === elements.tableBody.lastElementChild && elements.tableBody.rows.length < MAX_ROWS) {
+            addRow();
+        }
+        updateStatus();
+    });
+
+    elements.tableBody.addEventListener('focusin', e => {
+        const cell = e.target;
+        if (!cell.classList.contains('editable-cell')) return;
+        const row = cell.closest('tr');
+        if (isTutorialActive && row !== elements.tableBody.firstElementChild) {
+            endTutorial();
+        }
+        if (!isTutorialActive) return;
+        const colIndex = cell.closest('td').cellIndex;
+        if (colIndex === 2) showGuideText(0); 
+        else if (colIndex === 3) showGuideText(2); 
+        else if (colIndex === 4) showGuideText(3);
+    });
+
+    // --- DRAG AND DROP ЛОГІКА ДЛЯ JSON ---
+    let dragCounter = 0;
+    window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        elements.dragDropOverlay.classList.add('visible');
+    });
+    window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+    window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter === 0) {
+            elements.dragDropOverlay.classList.remove('visible');
+        }
+    });
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        elements.dragDropOverlay.classList.remove('visible');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            const nameLower = file.name.toLowerCase();
+            if (nameLower.endsWith('.json')) {
+                loadFile(file);
+            } else {
+                showNotification('Формат не підтримується. Завантажте JSON.', false);
+            }
+            e.dataTransfer.clearData();
+        }
+    });
+
+    // --- ІНІЦІАЛІЗАЦІЯ ---
+    init();
+});
+</script>
+</body>
+</html>
