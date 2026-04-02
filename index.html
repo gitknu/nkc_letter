@@ -38,8 +38,9 @@
         .table-container { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         th, td { padding: 10px 12px; border: 1px solid var(--border-color); text-align: left; vertical-align: middle; white-space: nowrap; }
-        th { background: #f1f1f1; font-weight: 600; }
+        th { background: #f1f1f1; font-weight: 600; vertical-align: top; }
         .dont-vary-label { font-size: 0.75rem; font-weight: normal; color: var(--secondary-dark); cursor: pointer; display: flex; align-items: center; gap: 4px; margin-top: 4px; user-select: none; }
+        .list-toggle-label { color: var(--bulk-color); }
         .status-light-th { width: 30px; text-align: center; }
         .status-light { width: 12px; height: 12px; border-radius: 50%; display: inline-block; transition: background-color .3s; }
         .status-grey { background-color: var(--grey); }
@@ -49,6 +50,9 @@
         .editable-cell { padding: 8px; min-height: 34px; outline: none; border: 1px solid transparent; border-radius: 4px; transition: all 0.2s ease-in-out; }
         .editable-cell[data-placeholder]:empty:not(:focus):before { content: attr(data-placeholder); color: var(--light-text); opacity: .7; pointer-events: none; }
         .editable-cell:focus { border-color: var(--primary); background: var(--guide-bg); box-shadow: 0 0 0 2px rgba(0,123,255,.25); }
+        
+        .list-textarea { width: 100%; min-height: 120px; height: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; font-family: inherit; font-size: 0.95rem; line-height: 1.5; resize: vertical; white-space: pre; overflow-wrap: normal; overflow-x: auto; background: #fff; outline: none; transition: all 0.2s ease-in-out; }
+        .list-textarea:focus { border-color: var(--bulk-color); background: #fdfcff; box-shadow: 0 0 0 2px rgba(111, 66, 193, 0.25); }
         
         .delete-cell { text-align: center; cursor: pointer; color: var(--error); font-weight: bold; user-select: none; opacity: 0.6; transition: opacity 0.2s; font-size: 1.2rem; }
         .delete-cell:hover { opacity: 1; }
@@ -113,7 +117,7 @@
                         <path d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zM5.5 7a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9zm0 4a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1h-9z"/>
                         <path fill-rule="evenodd" d="M1.5 7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5V7zM2 7h1v1H2V7zm0 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5H2zm1 .5H2v1h1v-1z"/>
                     </svg>
-                    Ввести списком
+                    Меню списків
                 </button>
 
                 <!-- Завантаження JSON -->
@@ -176,7 +180,7 @@
         </div>
         <p style="margin-bottom: 15px; color: var(--light-text); font-size: 0.9rem;">
             Вставте потрібні дані у стовпці. Кожен новий рядок автоматично створить новий запис у таблиці. 
-            Ви можете вставляти списки як сюди, так і безпосередньо у клітинки таблиці!
+            Ви можете вставляти списки як сюди, так і безпосередньо у клітинки таблиці! (Або активуйте "Вигляд списком" безпосередньо у потрібному стовпці)
         </p>
         <div class="bulk-grid">
             <div class="bulk-col">
@@ -216,7 +220,7 @@ function setVal(cell, val) {
 document.addEventListener('DOMContentLoaded', () => {
     const CONFIG = {
         journal: {
-            title: 'Генератор заявок <span style="font-size: 0.5em; color: var(--light-text); font-weight: normal; vertical-align: middle; margin-left: 10px;">v2.1</span>',
+            title: 'Генератор заявок <span style="font-size: 0.5em; color: var(--light-text); font-weight: normal; vertical-align: middle; margin-left: 10px;">v2.2</span>',
             templateUrls: [
                 'https://gitknu.github.io/nkc_letter/template.docx'
             ],
@@ -237,10 +241,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     const INITIAL_ROWS = 3;
-    const MAX_ROWS = 100; // збільшено для масового введення
+    const MAX_ROWS = 200; // збільшено для масового введення
     let currentMode = 'journal';
     let isTutorialActive = true;
     let currentTutorialStep = 0;
+    
+    // Глобальний стан для відстеження стовпців у "Вигляді списку"
+    const listCols = new Set();
     
     const elements = {
         title: document.getElementById('main-title'),
@@ -282,9 +289,14 @@ document.addEventListener('DOMContentLoaded', () => {
              if (h === 'Статус') {
                 return `<th class="status-light-th"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8 4a.905.905 0 0 0-.9.995l.35 3.507a.552.552 0 0 0 1.1 0l.35-3.507A.905.905 0 0 0 8 4zm.002 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2z"/></svg></th>`;
              }
-             if (h === 'Посада керівника' || h === 'ПІБ керівника') {
-                 const targetKey = h === 'Посада керівника' ? 'position_person_may_vary' : 'name_person_may_vary';
-                 return `<th>${h} <br><label class="dont-vary-label" title="При введенні нових даних, вони будуть копіюватись на всі наступні рядки автоматично"><input type="checkbox" class="dont-vary-cb" data-target="${targetKey}"> Однакова для всіх</label></th>`;
+             if (i >= 2) { // Data columns start at index 2
+                 let toggles = `<label class="dont-vary-label list-toggle-label" title="Перемикач на єдине текстове поле (всі рядки в одному)"><input type="checkbox" class="list-toggle-cb" data-col="${i}"> Вигляд списком</label>`;
+                 
+                 if (h === 'Посада керівника' || h === 'ПІБ керівника') {
+                     const targetKey = h === 'Посада керівника' ? 'position_person_may_vary' : 'name_person_may_vary';
+                     toggles += `<label class="dont-vary-label" title="При введенні нових даних, вони будуть копіюватись на всі наступні рядки автоматично"><input type="checkbox" class="dont-vary-cb" data-target="${targetKey}"> Однакова для всіх</label>`;
+                 }
+                 return `<th>${h} <div style="display:flex; flex-direction:column; gap:2px; margin-top:4px;">${toggles}</div></th>`;
              }
              return `<th>${h}</th>`;
         }).join('');
@@ -316,7 +328,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const numCols = CONFIG[currentMode].dataKeys.length;
         let rowHTML = `<td>${rowIndex + 1}</td><td><div class="status-light status-grey"></div></td>`;
         for(let i = 0; i < numCols; i++) {
-            rowHTML += `<td><div class="editable-cell" contenteditable="true"></div></td>`;
+            const colIndex = i + 2;
+            const isList = listCols.has(colIndex);
+            
+            // Якщо стовпець в режимі списку і це новий рядок (rowIndex > 0), клітинка і поле мають бути приховані, 
+            // оскільки rowspan покриває їх із першого рядка.
+            const tdStyle = isList ? 'display: none;' : '';
+            const cellStyle = isList ? 'display: none;' : '';
+            
+            rowHTML += `<td style="${tdStyle}"><div class="editable-cell" style="${cellStyle}" contenteditable="true"></div></td>`;
         }
         rowHTML += `<td class="delete-cell" title="Видалити рядок">✖</td>`;
         row.innerHTML = rowHTML;
@@ -333,6 +353,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (firstCell && newCell && getVal(firstCell).trim() !== '') {
                     setVal(newCell, getVal(firstCell));
                 }
+            }
+        });
+        
+        // Оновлюємо rowspan для всіх стовпців у режимі списку
+        listCols.forEach(colIndex => {
+            const firstTd = elements.tableBody.rows[0].cells[colIndex];
+            if (firstTd) {
+                firstTd.rowSpan = elements.tableBody.rows.length;
             }
         });
     }
@@ -374,6 +402,70 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         elements.filledRows.textContent = `${completeRowCount}/${rows.length}`;
         elements.toGenerate.textContent = completeRowCount;
+    }
+
+    // --- ЛОГІКА WYSIWYG СПИСКІВ ---
+    function enableListView(colIndex) {
+        listCols.add(colIndex);
+        const rowCount = elements.tableBody.rows.length;
+        const vals = [];
+        
+        for (let i = 0; i < rowCount; i++) {
+            const td = elements.tableBody.rows[i].cells[colIndex];
+            const cell = td.querySelector('.editable-cell');
+            vals.push(getVal(cell));
+            
+            cell.style.display = 'none'; // приховуємо оригінальну клітинку
+            
+            if (i === 0) {
+                td.rowSpan = rowCount;
+                const ta = document.createElement('textarea');
+                ta.className = 'list-textarea';
+                ta.value = vals.join('\n');
+                
+                const placeholders = CONFIG[currentMode].placeholders;
+                if (placeholders[colIndex - 2]) {
+                    ta.placeholder = placeholders[colIndex - 2] + '\n...';
+                }
+                
+                td.appendChild(ta);
+            } else {
+                td.style.display = 'none'; // приховуємо всі інші td
+            }
+        }
+    }
+
+    function disableListView(colIndex) {
+        listCols.delete(colIndex);
+        const rowCount = elements.tableBody.rows.length;
+        
+        for (let i = 0; i < rowCount; i++) {
+            const td = elements.tableBody.rows[i].cells[colIndex];
+            const cell = td.querySelector('.editable-cell');
+            
+            if (i === 0) {
+                td.rowSpan = 1;
+                const ta = td.querySelector('.list-textarea');
+                if (ta) ta.remove();
+            } else {
+                td.style.display = ''; // показуємо td назад
+            }
+            
+            cell.style.display = ''; // показуємо оригінальні клітинки
+        }
+    }
+    
+    // Синхронізує значення з прихованих комірок у textarea (викликається, коли додали/видалили рядки не через textarea)
+    function syncTextareasFromCells() {
+        listCols.forEach(colIndex => {
+            const firstTd = elements.tableBody.rows[0].cells[colIndex];
+            const ta = firstTd.querySelector('.list-textarea');
+            if (ta && document.activeElement !== ta) {
+                const vals = Array.from(elements.tableBody.rows).map(tr => getVal(tr.cells[colIndex].querySelector('.editable-cell')));
+                ta.value = vals.join('\n');
+            }
+            firstTd.rowSpan = elements.tableBody.rows.length;
+        });
     }
 
     async function generateDocuments() {
@@ -525,6 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         updateStatus();
+        syncTextareasFromCells();
         showNotification('Дані успішно завантажено з файлу!', true);
     }
 
@@ -630,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         updateStatus();
+        syncTextareasFromCells();
         closeBulkModal();
         showNotification(`Успішно додано ${dataToInsert.length} записів!`);
     }
@@ -642,10 +736,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- BULK INSERT (ПРЯМА ВСТАВКА В КЛІТИНКУ ТАБЛИЦІ) ---
     elements.tableBody.addEventListener('paste', e => {
         const cell = e.target.closest('.editable-cell');
-        if (!cell) return;
+        if (!cell) return; // Якщо вставка в textarea, працює нативна логіка поля
         
         const text = (e.clipboardData || window.clipboardData).getData('text');
-        // Якщо це просто один рядок, дозволяємо браузеру вставити його як зазвичай
         if (!text.includes('\n') && !text.includes('\r')) return; 
         
         e.preventDefault();
@@ -682,6 +775,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         updateStatus();
+        syncTextareasFromCells();
     });
 
     function showNotification(message, isSuccess = true) {
@@ -724,7 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.generateBtnTop.addEventListener('click', generateDocuments);
     elements.saveJsonBtn.addEventListener('click', saveTableDataAsJson);
     
-    // Обробка чекбоксів у шапці "Однакова для всіх"
+    // Обробка чекбоксів у шапці 
     elements.tableHeaderRow.addEventListener('change', e => {
         if (e.target.classList.contains('dont-vary-cb')) {
             const th = e.target.closest('th');
@@ -739,65 +833,133 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                     updateStatus();
+                    syncTextareasFromCells();
                 }
+            }
+        } else if (e.target.classList.contains('list-toggle-cb')) {
+            const colIndex = parseInt(e.target.dataset.col);
+            if (e.target.checked) {
+                enableListView(colIndex);
+            } else {
+                disableListView(colIndex);
             }
         }
     });
 
+    // Видалення рядка
     elements.tableBody.addEventListener('click', e => {
         if (e.target.classList.contains('delete-cell')) {
             const row = e.target.closest('tr');
+            const rowIndex = Array.from(elements.tableBody.rows).indexOf(row);
+            
             if (elements.tableBody.rows.length > 1) {
+                // Якщо видаляється перший рядок і активний режим списків, треба перенести textareas
+                if (rowIndex === 0 && listCols.size > 0) {
+                    const nextRow = elements.tableBody.rows[1];
+                    listCols.forEach(colIndex => {
+                        const ta = row.cells[colIndex].querySelector('.list-textarea');
+                        if (ta) {
+                            nextRow.cells[colIndex].appendChild(ta);
+                            nextRow.cells[colIndex].style.display = '';
+                        }
+                    });
+                }
+                
                 row.remove();
                 updateRowNumbers();
+                
+                // Оновлюємо значення та rowSpan для textareas
+                listCols.forEach(colIndex => {
+                    const firstTd = elements.tableBody.rows[0].cells[colIndex];
+                    firstTd.rowSpan = elements.tableBody.rows.length;
+                    const ta = firstTd.querySelector('.list-textarea');
+                    const vals = Array.from(elements.tableBody.rows).map(tr => getVal(tr.cells[colIndex].querySelector('.editable-cell')));
+                    if (ta) ta.value = vals.join('\n');
+                });
+                
                 updateStatus();
             } else {
                 row.querySelectorAll('.editable-cell').forEach(c => setVal(c, ''));
+                listCols.forEach(colIndex => {
+                    const ta = row.cells[colIndex].querySelector('.list-textarea');
+                    if (ta) ta.value = '';
+                });
                 updateStatus();
             }
         }
     });
 
     document.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.target.classList.contains('editable-cell') && !elements.bulkModal.classList.contains('visible')) {
+        if (e.key === 'Enter' && !e.target.classList.contains('editable-cell') && !e.target.classList.contains('list-textarea') && !elements.bulkModal.classList.contains('visible')) {
             e.preventDefault();
             generateDocuments();
         } else if (e.key === 'Escape' || e.key === 'Esc') {
             if (elements.bulkModal.classList.contains('visible')) {
                 closeBulkModal();
-            } else if (document.activeElement.classList.contains('editable-cell')) {
+            } else if (document.activeElement.classList.contains('editable-cell') || document.activeElement.classList.contains('list-textarea')) {
                 document.activeElement.blur();
                 if (isTutorialActive) showGuideText(5);
             }
         }
     });
 
+    // Синхронізація під час введення
     elements.tableBody.addEventListener('input', e => {
-        const cell = e.target;
-        if (!cell.classList.contains('editable-cell')) return;
-        const row = cell.closest('tr');
-        const td = cell.closest('td');
-        const colIndex = td.cellIndex;
+        if (e.target.classList.contains('list-textarea')) {
+            const colIndex = e.target.closest('td').cellIndex;
+            const lines = e.target.value.split('\n');
+            
+            // Додаємо рядки за необхідності
+            while (elements.tableBody.rows.length < lines.length && elements.tableBody.rows.length < MAX_ROWS) {
+                addRow();
+            }
+            
+            // Синхронізуємо дані в приховані поля
+            for (let i = 0; i < elements.tableBody.rows.length; i++) {
+                const cell = elements.tableBody.rows[i].cells[colIndex].querySelector('.editable-cell');
+                setVal(cell, lines[i] !== undefined ? lines[i] : '');
+            }
+            
+            // Застосовуємо логіку "Однакова для всіх", якщо увімкнена для цього стовпця
+            const th = elements.tableHeaderRow.cells[colIndex];
+            const cb = th ? th.querySelector('.dont-vary-cb') : null;
+            if (cb && cb.checked && lines.length > 0) {
+                const val = lines[0];
+                for (let i = 1; i < elements.tableBody.rows.length; i++) {
+                    const cell = elements.tableBody.rows[i].cells[colIndex].querySelector('.editable-cell');
+                    setVal(cell, val);
+                }
+            }
+            
+            updateStatus();
+            
+        } else if (e.target.classList.contains('editable-cell')) {
+            const cell = e.target;
+            const row = cell.closest('tr');
+            const td = cell.closest('td');
+            const colIndex = td.cellIndex;
 
-        // Логіка копіювання значень, якщо увімкнено чекбокс "Однакове для всіх"
-        const th = elements.tableHeaderRow.cells[colIndex];
-        const cb = th ? th.querySelector('.dont-vary-cb') : null;
-        if (cb && cb.checked) {
-            const val = getVal(cell);
-            elements.tableBody.querySelectorAll(`tr td:nth-child(${colIndex + 1}) .editable-cell`).forEach(c => {
-                if (c !== cell) setVal(c, val);
-            });
-        }
+            // Логіка "Однакове для всіх"
+            const th = elements.tableHeaderRow.cells[colIndex];
+            const cb = th ? th.querySelector('.dont-vary-cb') : null;
+            if (cb && cb.checked) {
+                const val = getVal(cell);
+                elements.tableBody.querySelectorAll(`tr td:nth-child(${colIndex + 1}) .editable-cell`).forEach(c => {
+                    if (c !== cell) setVal(c, val);
+                });
+            }
 
-        if (row === elements.tableBody.lastElementChild && elements.tableBody.rows.length < MAX_ROWS) {
-            addRow();
+            if (row === elements.tableBody.lastElementChild && elements.tableBody.rows.length < MAX_ROWS) {
+                addRow();
+            }
+            updateStatus();
+            syncTextareasFromCells(); // Оновлюємо інші textareas, якщо додали/видалили рядок
         }
-        updateStatus();
     });
 
     elements.tableBody.addEventListener('focusin', e => {
         const cell = e.target;
-        if (!cell.classList.contains('editable-cell')) return;
+        if (!cell.classList.contains('editable-cell') && !cell.classList.contains('list-textarea')) return;
         const row = cell.closest('tr');
         if (isTutorialActive && row !== elements.tableBody.firstElementChild) {
             endTutorial();
