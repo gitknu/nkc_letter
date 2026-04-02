@@ -411,6 +411,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         elements.loader.classList.add('active');
         try {
+            const masterZip = new PizZip();
+            
             for (const [i, rowData] of dataToGenerate.entries()) {
                 let templateUrl = config.templateUrls[0];
                 const docData = { ...rowData };
@@ -430,12 +432,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const doc = new docxtemplater(zip, { delimiters: { start: '<', end: '>' } });
                 doc.setData(docData);
                 doc.render();
-                const out = doc.getZip().generate({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                
+                const outBuffer = doc.getZip().generate({ type: 'arraybuffer' });
                 
                 let safeName = (rowData.name_journal_always_vary || 'Журнал').replace(/[\\/:*?"<>|]/g, '').slice(0, 30).trim();
-                saveAs(out, `${i + 1}_Заявка_${safeName}.docx`);
+                const fileName = `${i + 1}_Заявка_${safeName}.docx`;
+                
+                masterZip.file(fileName, outBuffer);
             }
-            showNotification(`Успішно згенеровано ${dataToGenerate.length} документів!`);
+            
+            const masterZipBlob = masterZip.generate({ type: 'blob' });
+            
+            const date = new Date();
+            const dateString = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+            
+            saveAs(masterZipBlob, `Заявки_${dateString}.zip`);
+            
+            showNotification(`Успішно згенеровано архів з ${dataToGenerate.length} документами!`);
         } catch (e) {
             console.error('Generation error:', e);
             showGuideAlert(`Критична помилка: ${e.message}`);
